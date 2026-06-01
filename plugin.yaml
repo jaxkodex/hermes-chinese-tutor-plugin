@@ -1,0 +1,45 @@
+name: chinese-tutor
+version: "1.0.0"
+description: >
+  HSK vocabulary flashcard practice with SM-2 spaced repetition.
+  Parses an Anki .apkg deck on first run and schedules reviews automatically.
+
+# No external API keys required — everything runs locally against a SQLite file.
+
+provides_tools:
+
+  - name: get_next_word
+    description: >
+      Returns the next HSK vocabulary word due for review based on SM-2
+      scheduling. If nothing is overdue, returns the least-recently-seen word.
+    handler: "tools:get_next_word_handler"
+    parameters: {}
+
+  - name: check_answer
+    description: >
+      Compares the user's typed Chinese characters against the correct answer,
+      updates the SM-2 ease factor and interval, and returns feedback.
+    handler: "tools:check_answer_handler"
+    parameters:
+      word_id:
+        type: integer
+        required: true
+        description: The word_id value returned by get_next_word.
+      user_answer:
+        type: string
+        required: true
+        description: The Chinese character(s) the user typed.
+
+  - name: get_progress
+    description: >
+      Returns overall study statistics: total vocabulary, words seen, accuracy
+      percentage, current daily streak, words due today, and a per-HSK-level
+      breakdown.
+    handler: "tools:get_progress_handler"
+    parameters: {}
+
+slash_commands:
+
+  - command: /chinese
+    description: Start (or resume) a Chinese vocabulary practice session.
+    handler: "tools:chinese_command_handler"

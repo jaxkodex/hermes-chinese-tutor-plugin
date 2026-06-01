@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+*.pyo
+data/progress.db
+data/hsk.apkg
