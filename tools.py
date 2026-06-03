@@ -13,8 +13,7 @@ automatically migrates the schema and loads vocabulary if the .apkg is present.
 
 import json
 
-# db is on sys.path because Hermes adds the plugin directory before importing
-import db as _db
+from . import db as _db
 
 # One-time setup: idempotent, safe to call multiple times
 _db.init_db()
