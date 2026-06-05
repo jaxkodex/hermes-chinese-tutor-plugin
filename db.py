@@ -1,7 +1,7 @@
 """
 Database layer for the chinese-tutor plugin.
 
-Single SQLite file at ~/.hermes/plugins/chinese-tutor/data/progress.db.
+Single SQLite file at <plugin-dir>/data/progress.db.
 On first run the .apkg at data/hsk.apkg is parsed and its notes are loaded
 into the `vocabulary` table.  All subsequent access goes through the helpers
 below; nothing outside this module touches the DB directly.
@@ -16,7 +16,7 @@ import zipfile
 from datetime import date, timedelta
 from pathlib import Path
 
-PLUGIN_DIR = Path.home() / ".hermes" / "plugins" / "chinese-tutor"
+PLUGIN_DIR = Path(__file__).parent
 DATA_DIR = PLUGIN_DIR / "data"
 DB_PATH = DATA_DIR / "progress.db"
 APKG_PATH = DATA_DIR / "hsk.apkg"
