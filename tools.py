@@ -38,7 +38,7 @@ def get_next_word_handler(args: dict, **kwargs) -> str:
             return json.dumps({
                 "error": (
                     "No vocabulary found. "
-                    "Place hsk.apkg in ~/.hermes/plugins/chinese-tutor/data/ "
+                    "Ensure hsk.apkg is in the plugin's data/ directory "
                     "and delete the 'vocab_loaded' row from the meta table to reload."
                 )
             })
@@ -147,7 +147,7 @@ def chinese_command_handler(args: dict, **kwargs) -> str:
                 "status": "no_words",
                 "message": (
                     "No vocabulary loaded. "
-                    "Add hsk.apkg to ~/.hermes/plugins/chinese-tutor/data/ and restart."
+                    "Ensure hsk.apkg is in the plugin's data/ directory and restart."
                 ),
             })
 
