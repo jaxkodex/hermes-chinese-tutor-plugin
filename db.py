@@ -2,7 +2,7 @@
 Database layer for the chinese-tutor plugin.
 
 Single SQLite file at ~/.hermes/plugins/chinese-tutor/data/progress.db.
-On first run the .apkg at data/hsk.apkg is parsed and its notes are loaded
+On first run the .apkg/.colpkg in the plugin's data/ directory is parsed and its notes are loaded
 into the `vocabulary` table.  All subsequent access goes through the helpers
 below; nothing outside this module touches the DB directly.
 """
@@ -16,17 +16,23 @@ import zipfile
 from datetime import date, timedelta
 from pathlib import Path
 
-PLUGIN_DIR = Path.home() / ".hermes" / "plugins" / "chinese-tutor"
-DATA_DIR = PLUGIN_DIR / "data"
-DB_PATH = DATA_DIR / "progress.db"
-APKG_PATH = DATA_DIR / "hsk.apkg"
+# Dynamically resolve the plugin directory for read-only assets
+PLUGIN_DIR = Path(__file__).parent
+ASSET_DIR = PLUGIN_DIR / "data"
+
+# Mutable user data stays safely in the user's home directory
+USER_DATA_DIR = Path.home() / ".hermes" / "plugins" / "chinese-tutor" / "data"
+DB_PATH = USER_DATA_DIR / "progress.db"
+
+# Support both .colpkg (Anki 2.1.50+) and .apkg formats
+APKG_PATH = next((ASSET_DIR / f for f in ["hsk.colpkg", "hsk.apkg"] if (ASSET_DIR / f).exists()), ASSET_DIR / "hsk.apkg")
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Connection helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _connect() -> sqlite3.Connection:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    USER_DATA_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
     # Enable WAL for slightly safer concurrent access (Telegram bot + plugin)
@@ -201,24 +207,38 @@ def _load_apkg(conn: sqlite3.Connection) -> int:
 
             for note in notes:
                 raw_fields = note["flds"].split("\x1f")
-                fields = [_strip_html(f) for f in raw_fields]
+                
+                character = ""
+                pinyin = ""
+                meaning = ""
+                
+                for f in raw_fields:
+                    clean_f = _strip_html(f)
+                    if not clean_f:
+                        continue
+                        
+                    if _CJK_RE.search(clean_f):
+                        if not character:
+                            character = clean_f
+                    else:
+                        # No CJK. Could be pinyin or meaning.
+                        is_definitely_pinyin = bool(
+                            re.search(r'[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜü]', clean_f) or 
+                            re.search(r'\b[a-z]+[1-5]\b', clean_f)
+                        )
+                        is_pinyin_candidate = bool(
+                            re.match(r'^[a-zü\s]+$', clean_f, re.IGNORECASE) and len(clean_f.split()) <= 5
+                        )
+                        
+                        if is_definitely_pinyin and not pinyin:
+                            pinyin = clean_f
+                        elif is_pinyin_candidate and not pinyin:
+                            pinyin = clean_f
+                        elif re.search(r'[a-zA-Z]', clean_f) and not meaning:
+                            meaning = clean_f
 
-                # Locate the first field that looks like Chinese characters
-                char_idx = next(
-                    (i for i, f in enumerate(fields) if _CJK_RE.search(f)),
-                    None,
-                )
-                if char_idx is None:
-                    continue  # skip non-Chinese notes
-
-                character = fields[char_idx]
-                # The two fields immediately after the character are treated as
-                # pinyin then meaning.  This matches virtually all published
-                # HSK Anki decks (including the popular "HSK 1-6 with audio").
-                remaining = [f for i, f in enumerate(fields) if i != char_idx]
-                pinyin  = remaining[0] if len(remaining) > 0 else ""
-                meaning = remaining[1] if len(remaining) > 1 else ""
-
+                if not character:
+                    continue
                 # Determine HSK level: tag > deck name > 0
                 hsk_level = _hsk_level_from_tags(note["tags"])
                 if not hsk_level:
