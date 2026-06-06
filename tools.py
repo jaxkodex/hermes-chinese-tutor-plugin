@@ -38,8 +38,7 @@ def get_next_word_handler(args: dict, **kwargs) -> str:
             return json.dumps({
                 "error": (
                     "No vocabulary found. "
-                    "Place hsk.apkg in ~/.hermes/plugins/chinese-tutor/data/ "
-                    "and delete the 'vocab_loaded' row from the meta table to reload."
+                    "Ensure hsk.apkg is in the plugin's data/ directory and restart."
                 )
             })
         return json.dumps(word)
@@ -125,38 +124,35 @@ def get_progress_handler(args: dict, **kwargs) -> str:
 def chinese_command_handler(args: dict, **kwargs) -> str:
     """
     Entry point for the /chinese Telegram slash command.
-
-    Fetches the next due word and returns a structured payload that Qwen wraps
-    in natural language before presenting it to the user.  Qwen is responsible
-    for all conversational framing ("Here's your next word!" etc.).
-
-    Response shape (success):
-        {
-          status: "ready",
-          word:   { word_id, character, pinyin, meaning, hsk_level },
-          prompt: "What are the pinyin and meaning of this character?"
-        }
-
-    Response shape (no vocabulary):
-        { status: "no_words", message: "..." }
+    Returns a formatted natural language message directly to prevent raw JSON leakage.
     """
     try:
         word = _db.get_next_due_word()
         if word is None:
-            return json.dumps({
-                "status": "no_words",
-                "message": (
-                    "No vocabulary loaded. "
-                    "Add hsk.apkg to ~/.hermes/plugins/chinese-tutor/data/ and restart."
-                ),
-            })
-
-        return json.dumps({
-            "status": "ready",
-            "word":   word,
-            # Telling Qwen exactly what to ask keeps the interaction focused
-            "prompt": "Ask the user to type the Chinese character shown, "
-                      "then call check_answer with their response.",
-        })
+            return (
+                "No vocabulary loaded. "
+                "Ensure hsk.colpkg or hsk.apkg is in the plugin's data/ directory."
+            )
+        
+        word_id = word.get("word_id")
+        character = word.get("character", "")
+        pinyin = word.get("pinyin", "")
+        meaning = word.get("meaning", "")
+        hsk_level = word.get("hsk_level", "")
+        
+        # Format as a clean, natural-language message. 
+        # The [WORD_ID: X] tag is for the AI to track, but looks clean to the user.
+        response = f"[WORD_ID: {word_id}]\n\n"
+        response += f"### Your next word to practice:\n\n"
+        response += f"# {character}\n\n"
+        if pinyin:
+            response += f"- **Pinyin:** {pinyin}\n"
+        if meaning:
+            response += f"- **Meaning:** {meaning}\n"
+        if hsk_level:
+            response += f"- **HSK Level:** {hsk_level}\n\n"
+        response += "Can you tell me the pinyin and meaning of this character? (Just type your answer, and I'll check it for you!)"
+        
+        return response
     except Exception as exc:
-        return json.dumps({"error": str(exc)})
+        return f"Error: {str(exc)}"
